@@ -1,0 +1,15 @@
+{
+  "name": "webrtc-chrome-crash-demo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.html",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@git.ringcentral.com:Ivan.Chirva/webrtc-chrome-crash-demo.git"
+  },
+  "author": "",
+  "license": "ISC"
+}
