@@ -64,28 +64,46 @@ async function start() {
     const canvas = document.getElementById("canvas");
     canvas.width = width;
     canvas.height = height;
-    const canvasTransferable = canvas.transferControlToOffscreen();
+    const ctx = canvas.getContext("2d");
 
-    const worker = new Worker("worker.js", { name: `canvas-worker` });
-    worker.postMessage({ canvasTransferable, width, height }, [
-        canvasTransferable
-    ]);
+    const generator = new MediaStreamTrackGenerator({ kind: "video" });
+    const writer = generator.writable.getWriter();
+
+    const draw = async (x, y, min) => {
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "red";
+        ctx.fillRect(x, y, min * 2, min * 2);
+        const canvasBit = await createImageBitmap(canvas);
+        const videoFrame = new VideoFrame(canvasBit, { timestamp: performance.now() });
+        await writer.write(videoFrame);
+        videoFrame.close();
+    };
+
+    const createNewFrame = async () => {
+        const min = 50;
+        const x = min + (width - min) * Math.random();
+        const y = min + (height - min) * Math.random();
+        await draw(x, y, min);
+    };
+
+    const createStream = () => {
+        const mediaStream = new MediaStream([generator]);
+        return mediaStream;
+    };
 
     let stream;
 
-    worker.onmessage = () => {
-        setTimeout(() => {
-            worker.postMessage({ width, height }, []);
-        }, 500);
+    setInterval(async () => {
+        await createNewFrame();
 
         if (!stream) {
-            stream = canvas.captureStream(24);
+            stream = createStream();
 
             localVideo.srcObject = stream;
             localStream = stream;
             callButton.disabled = false;
         }
-    };
+    }, 500);
 }
 
 async function call() {
