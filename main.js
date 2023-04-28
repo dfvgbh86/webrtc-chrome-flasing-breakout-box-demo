@@ -54,36 +54,65 @@ function getOtherPc(pc) {
     return pc === pc1 ? pc2 : pc1;
 }
 
+
+
 async function start() {
+    const bitmapsAndFramesToCleanup = [];
+    const cleanBitmapsAndFrames = () => bitmapsAndFramesToCleanup.forEach(f => f?.close?.());
+
     console.log("Requesting local stream");
     startButton.disabled = true;
 
-    const width = 200;
-    const height = 200;
+    const videoSource = document.createElement("video");
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    videoSource.srcObject = stream;
+    videoSource.play();
 
-    const canvas = document.getElementById("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext("2d");
+    await new Promise((resolve) => {
+        videoSource.onloadedmetadata = () => {
+            resolve();
+        };
+    });
 
-    const generator = new MediaStreamTrackGenerator({ kind: "video" });
+    const videoTrack = stream.getVideoTracks()[0];
+
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+    localVideo.muted = true;
+    remoteVideo.muted = true;
+
+    localVideo.width = 640;
+    localVideo.height = 480;
+    remoteVideo.width = 640;
+    remoteVideo.height = 480;
+
+    const currentSettings = videoTrack.getSettings();
+    const constraints = {
+        ...currentSettings,
+        width: 640,
+        height: 480,
+        frameRate: { exact: 15 },
+    };
+    await videoTrack.applyConstraints(constraints);
+    const processor = new MediaStreamTrackProcessor(videoTrack);
+    const reader = processor.readable.getReader();
+    const generator = new MediaStreamTrackGenerator("video");
     const writer = generator.writable.getWriter();
 
-    const draw = async (x, y, min) => {
-        ctx.clearRect(0, 0, width, height);
-        ctx.fillStyle = "red";
-        ctx.fillRect(x, y, min * 2, min * 2);
-        const canvasBit = await createImageBitmap(canvas);
-        const videoFrame = new VideoFrame(canvasBit, { timestamp: performance.now() });
+    const draw = async (frame) => {
+        const bitmap = await createImageBitmap(frame);
+        const videoFrame = new VideoFrame(bitmap, { timestamp: performance.now() });
         await writer.write(videoFrame);
-        videoFrame.close();
+        bitmapsAndFramesToCleanup.push(videoFrame, frame, bitmap)
+        cleanBitmapsAndFrames();
     };
 
-    const createNewFrame = async () => {
-        const min = 50;
-        const x = min + (width - min) * Math.random();
-        const y = min + (height - min) * Math.random();
-        await draw(x, y, min);
+    const processFrames = async () => {
+        while (true) {
+            const { value: frame, done } = await reader.read();
+            if (done) break;
+            await draw(frame);
+        }
     };
 
     const createStream = () => {
@@ -91,19 +120,12 @@ async function start() {
         return mediaStream;
     };
 
-    let stream;
+    let newStream = createStream();
+    localVideo.srcObject = newStream;
+    localStream = newStream;
+    callButton.disabled = false;
 
-    setInterval(async () => {
-        await createNewFrame();
-
-        if (!stream) {
-            stream = createStream();
-
-            localVideo.srcObject = stream;
-            localStream = stream;
-            callButton.disabled = false;
-        }
-    }, 500);
+    processFrames();
 }
 
 async function call() {
