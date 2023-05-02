@@ -10,6 +10,8 @@ hangupButton.addEventListener("click", hangup);
 let startTime;
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
+const videoWith = 320;
+const videoHeight = 240;
 
 localVideo.addEventListener("loadedmetadata", function () {
     console.log(
@@ -54,8 +56,6 @@ function getOtherPc(pc) {
     return pc === pc1 ? pc2 : pc1;
 }
 
-
-
 async function start() {
     const bitmapsAndFramesToCleanup = [];
     const cleanBitmapsAndFrames = () => bitmapsAndFramesToCleanup.forEach(f => f?.close?.());
@@ -63,34 +63,14 @@ async function start() {
     console.log("Requesting local stream");
     startButton.disabled = true;
 
-    const videoSource = document.createElement("video");
     const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    videoSource.srcObject = stream;
-    videoSource.play();
-
-    await new Promise((resolve) => {
-        videoSource.onloadedmetadata = () => {
-            resolve();
-        };
-    });
-
     const videoTrack = stream.getVideoTracks()[0];
-
-    const localVideo = document.getElementById("localVideo");
-    const remoteVideo = document.getElementById("remoteVideo");
-    localVideo.muted = true;
-    remoteVideo.muted = true;
-
-    localVideo.width = 640;
-    localVideo.height = 480;
-    remoteVideo.width = 640;
-    remoteVideo.height = 480;
 
     const currentSettings = videoTrack.getSettings();
     const constraints = {
         ...currentSettings,
-        width: 640,
-        height: 480,
+        width: videoWith,
+        height: videoHeight,
         frameRate: { exact: 15 },
     };
     await videoTrack.applyConstraints(constraints);
