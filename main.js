@@ -12,27 +12,16 @@ const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 const videoWith = 320;
 const videoHeight = 240;
-
 localVideo.addEventListener("loadedmetadata", function () {
-    console.log(
-        `Local video videoWidth: ${this.videoWidth}px,  videoHeight: ${this.videoHeight}px`
-    );
+    console.log(`Local video videoWidth: ${this.videoWidth}px,  videoHeight: ${this.videoHeight}px`);
 });
 
 remoteVideo.addEventListener("loadedmetadata", function () {
-    console.log(
-        `Remote video videoWidth: ${this.videoWidth}px,  videoHeight: ${this.videoHeight}px`
-    );
+    console.log(`Remote video videoWidth: ${this.videoWidth}px,  videoHeight: ${this.videoHeight}px`);
 });
 
 remoteVideo.addEventListener("resize", () => {
-    console.log(
-        `Remote video size changed to ${remoteVideo.videoWidth}x${
-            remoteVideo.videoHeight
-        } - Time since pageload ${performance.now().toFixed(0)}ms`
-    );
-    // We'll use the first onsize callback as an indication that video has started
-    // playing out.
+    console.log(`Remote video size changed to ${remoteVideo.videoWidth}x${remoteVideo.videoHeight}`);
     if (startTime) {
         const elapsedTime = window.performance.now() - startTime;
         console.log("Setup time: " + elapsedTime.toFixed(3) + "ms");
@@ -57,55 +46,21 @@ function getOtherPc(pc) {
 }
 
 async function start() {
-    const bitmapsAndFramesToCleanup = [];
-    const cleanBitmapsAndFrames = () => bitmapsAndFramesToCleanup.forEach(f => f?.close?.());
-
     console.log("Requesting local stream");
     startButton.disabled = true;
 
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    const videoTrack = stream.getVideoTracks()[0];
-
-    const currentSettings = videoTrack.getSettings();
+    localStream = await navigator.mediaDevices.getUserMedia({video: true});
+    const track = localStream.getVideoTracks()[0];
+    const currentSettings = track.getSettings();
     const constraints = {
         ...currentSettings,
         width: videoWith,
         height: videoHeight,
         frameRate: { exact: 15 },
     };
-    await videoTrack.applyConstraints(constraints);
-    const processor = new MediaStreamTrackProcessor(videoTrack);
-    const reader = processor.readable.getReader();
-    const generator = new MediaStreamTrackGenerator("video");
-    const writer = generator.writable.getWriter();
-
-    const draw = async (frame) => {
-        const bitmap = await createImageBitmap(frame);
-        const videoFrame = new VideoFrame(bitmap, { timestamp: performance.now() });
-        await writer.write(videoFrame);
-        bitmapsAndFramesToCleanup.push(videoFrame, frame, bitmap)
-        cleanBitmapsAndFrames();
-    };
-
-    const processFrames = async () => {
-        while (true) {
-            const { value: frame, done } = await reader.read();
-            if (done) break;
-            await draw(frame);
-        }
-    };
-
-    const createStream = () => {
-        const mediaStream = new MediaStream([generator]);
-        return mediaStream;
-    };
-
-    let newStream = createStream();
-    localVideo.srcObject = newStream;
-    localStream = newStream;
+    await track.applyConstraints(constraints);
+    localVideo.srcObject = localStream;
     callButton.disabled = false;
-
-    processFrames();
 }
 
 async function call() {
@@ -129,12 +84,8 @@ async function call() {
     pc2 = new RTCPeerConnection(configuration);
     console.log("Created remote peer connection object pc2");
     pc2.addEventListener("icecandidate", (e) => onIceCandidate(pc2, e));
-    pc1.addEventListener("iceconnectionstatechange", (e) =>
-        onIceStateChange(pc1, e)
-    );
-    pc2.addEventListener("iceconnectionstatechange", (e) =>
-        onIceStateChange(pc2, e)
-    );
+    pc1.addEventListener("iceconnectionstatechange", (e) => onIceStateChange(pc1, e));
+    pc2.addEventListener("iceconnectionstatechange", (e) => onIceStateChange(pc2, e));
     pc2.addEventListener("track", gotRemoteStream);
 
     localStream.getTracks().forEach((track) => pc1.addTrack(track, localStream));
@@ -172,9 +123,6 @@ async function onCreateOfferSuccess(desc) {
     }
 
     console.log("pc2 createAnswer start");
-    // Since the 'remote' side has no media stream we need
-    // to pass in the right constraints in order for it to
-    // accept the incoming offer of audio and video.
     try {
         const answer = await pc2.createAnswer();
         await onCreateAnswerSuccess(answer);
@@ -227,11 +175,7 @@ async function onIceCandidate(pc, event) {
     } catch (e) {
         onAddIceCandidateError(pc, e);
     }
-    console.log(
-        `${getName(pc)} ICE candidate:\n${
-            event.candidate ? event.candidate.candidate : "(null)"
-        }`
-    );
+    console.log(`${getName(pc)} ICE candidate:\n${event.candidate ? event.candidate.candidate : "(null)"}`);
 }
 
 function onAddIceCandidateSuccess(pc) {
@@ -239,9 +183,7 @@ function onAddIceCandidateSuccess(pc) {
 }
 
 function onAddIceCandidateError(pc, error) {
-    console.log(
-        `${getName(pc)} failed to add ICE Candidate: ${error.toString()}`
-    );
+    console.log(`${getName(pc)} failed to add ICE Candidate: ${error.toString()}`);
 }
 
 function onIceStateChange(pc, event) {
