@@ -86,11 +86,9 @@ async function call() {
     const writer = generator.writable.getWriter();
 
     const draw = async (frame) => {
-        const bitmap = await createImageBitmap(frame);
-
-        const videoFrame = new VideoFrame(bitmap, { timestamp: performance.now() });
+        const videoFrame = new VideoFrame(frame, { timestamp: performance.now() });
         await writer.write(videoFrame);
-        bitmapsAndFramesToCleanup.push(videoFrame, frame, bitmap)
+        bitmapsAndFramesToCleanup.push(videoFrame, frame)
         cleanBitmapsAndFrames();
     };
 
