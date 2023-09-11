@@ -62,13 +62,6 @@ async function start() {
     callButton.disabled = false;
 }
 
-const bitmapsAndFramesToCleanup = [];
-const cleanBitmapsAndFrames = () => bitmapsAndFramesToCleanup.forEach(f => f?.close?.());
-
-let reader;
-let writer;
-let generator;
-
 async function call() {
     callButton.disabled = true;
     hangupButton.disabled = false;
@@ -83,38 +76,26 @@ async function call() {
         console.log(`Using audio device: ${audioTracks[0].label}`);
     }
 
-    const videoTrack = localStream.getVideoTracks()[0];
-    const processor = new MediaStreamTrackProcessor(videoTrack);
-    reader = processor.readable.getReader();
-    generator = new MediaStreamTrackGenerator("video");
-    writer = generator.writable.getWriter();
+    const videoElement = document.createElement("video");
+    videoElement.srcObject = localStream;
+    await videoElement.play();
 
-    const draw = async (frame) => {
-        // flickering reproduced only with this line
-        const bitmap = await createImageBitmap(frame);
+    const localCanvas = document.createElement("canvas");
+    const localContext = localCanvas.getContext('2d');
+    localCanvas.width = videoWidth;
+    localCanvas.height = videoHeight;
 
-        const videoFrame = new VideoFrame(bitmap, { timestamp: performance.now() });
-        await writer.write(videoFrame);
-        bitmapsAndFramesToCleanup.push(videoFrame, frame, bitmap)
-        cleanBitmapsAndFrames();
-    };
+    async function drawVideoFrame() {
+        let bitmap = await createImageBitmap(videoElement);
+        localContext.drawImage(bitmap, 0, 0, localCanvas.width, localCanvas.height);
+        bitmap.close();
 
-    const processFrames = async () => {
-        while (true) {
-            const { value: frame, done } = await reader.read();
-            if (done) break;
-            await draw(frame);
-        }
-    };
+        requestAnimationFrame(drawVideoFrame);
+    }
 
-    const createStream = () => {
-        const mediaStream = new MediaStream([generator]);
-        return mediaStream;
-    };
+    drawVideoFrame();
 
-    remoteVideo.srcObject = createStream();
-
-    processFrames();
+    remoteVideo.srcObject = localCanvas.captureStream(15);
 }
 
 async function hangup() {
@@ -122,7 +103,4 @@ async function hangup() {
     remoteVideo.srcObject = null;
     hangupButton.disabled = true;
     callButton.disabled = false;
-    await reader?.cancel();
-    await writer?.close();
-    await generator?.stop();
 }
